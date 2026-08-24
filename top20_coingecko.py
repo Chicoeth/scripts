@@ -43,6 +43,10 @@ TOP_N = 200                                # universo: top N por market cap
 SELECT_N = 20                              # quantas moedas selecionar
 MAX_ATH_DRAWDOWN = -50.0                   # corte: no máximo -50% da ATH
 
+# Sempre no universo, mesmo abaixo do corte de ATH: BTC é a referência do
+# gráfico e ambos ficam colados no limiar, entrando e saindo entre runs.
+ALWAYS_INCLUDE = ("bitcoin", "ethereum")
+
 API_PUBLIC = "https://api.coingecko.com/api/v3"
 API_PRO = "https://pro-api.coingecko.com/api/v3"
 
@@ -223,12 +227,17 @@ def build_dataset(args):
     print(f"{len(eligible)} moedas do top {args.top} estão a até "
           f"{-MAX_ATH_DRAWDOWN:.0f}% da ATH.")
 
-    # -- garante BTC no conjunto (referência), mesmo se cair no filtro
+    # -- garante BTC (referência) e ETH no conjunto, mesmo se caírem no filtro.
+    # Ambos oscilam em torno do corte de -50% e entram/saem do universo entre
+    # execuções; sem isso o ranking deixa de ser comparável entre runs.
     ids = {m["id"] for m in eligible}
-    if "bitcoin" not in ids:
-        btc = next((m for m in markets if m["id"] == "bitcoin"), None)
-        if btc:
-            eligible.append(btc)
+    for forced in ALWAYS_INCLUDE:
+        if forced not in ids:
+            m = next((x for x in markets if x["id"] == forced), None)
+            if m:
+                print(f'{m["name"]} incluída à força: '
+                      f'{m.get("ath_change_percentage"):.2f}% da ATH')
+                eligible.append(m)
 
     # -- séries diárias e retorno no período
     rows, series_by_id = [], {}
