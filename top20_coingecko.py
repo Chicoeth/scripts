@@ -88,24 +88,40 @@ def make_session(api_key: str | None):
     return s, base
 
 
-def get_json(session, base, path, params, sleep_s, max_retries=6):
+MAX_BACKOFF = 120.0   # teto por espera: sem isso o backoff chega a 384s+
+MAX_RETRIES = 12      # a API pública pode estrangular por vários minutos
+
+
+def get_json(session, base, path, params, sleep_s, max_retries=MAX_RETRIES):
     """GET com backoff para 429/erros transitórios."""
     url = f"{base}{path}"
     delay = sleep_s
     for attempt in range(max_retries):
         r = session.get(url, params=params, timeout=30)
         if r.status_code == 200:
+            # A API pública às vezes devolve 200 com corpo "Throttled";
+            # tratar como transitório em vez de estourar JSONDecodeError.
+            try:
+                data = r.json()
+            except ValueError:
+                print(f"  [resposta não-JSON: {r.text[:40]!r}] aguardando "
+                      f"{delay:.0f}s…", flush=True)
+                time.sleep(delay)
+                delay = min(delay * 2, MAX_BACKOFF)
+                continue
             time.sleep(sleep_s)  # espaçamento entre chamadas (rate limit)
-            return r.json()
+            return data
         if r.status_code == 429:
-            wait = float(r.headers.get("Retry-After") or delay * 2)
+            # Retry-After pode vir como 0; nunca re-tentar sem pausa.
+            wait = min(max(float(r.headers.get("Retry-After") or 0), delay * 2),
+                       MAX_BACKOFF)
             print(f"  [rate limit] aguardando {wait:.0f}s…", flush=True)
             time.sleep(wait)
-            delay *= 2
+            delay = min(delay * 2, MAX_BACKOFF)
             continue
         if r.status_code >= 500:
             time.sleep(delay)
-            delay *= 2
+            delay = min(delay * 2, MAX_BACKOFF)
             continue
         raise RuntimeError(f"HTTP {r.status_code} em {path}: {r.text[:200]}")
     raise RuntimeError(f"Falha após {max_retries} tentativas em {path}")
