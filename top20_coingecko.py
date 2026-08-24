@@ -405,8 +405,9 @@ def scatter_chart(final, path):
                   color=PAL["ink2"])
     ax.set_title("Retorno × distância da ATH", loc="left", fontsize=14,
                  fontweight="bold", color=PAL["ink"], pad=18)
-    ax.text(0, 1.02, "Top 20 retornos (jul→hoje) entre moedas a até −50% da ATH · "
-            "linhas tracejadas = medianas", transform=ax.transAxes,
+    ax.text(0, 1.02, f"Top {len(df)} retornos (jul→hoje) entre moedas a até "
+            f"{MAX_ATH_DRAWDOWN:.0f}% da ATH · linhas tracejadas = medianas"
+            .replace("-", "−"), transform=ax.transAxes,
             fontsize=10, color=PAL["ink2"])
     fig.subplots_adjust(left=0.09, right=0.97, top=0.88, bottom=0.09)
     fig.savefig(path, facecolor=PAL["surface"])
