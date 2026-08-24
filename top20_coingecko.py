@@ -98,7 +98,8 @@ def get_json(session, base, path, params, sleep_s, max_retries=6):
             time.sleep(sleep_s)  # espaçamento entre chamadas (rate limit)
             return r.json()
         if r.status_code == 429:
-            wait = float(r.headers.get("Retry-After") or delay * 2)
+            # Retry-After pode vir como 0; nunca re-tentar sem pausa.
+            wait = max(float(r.headers.get("Retry-After") or 0), delay * 2)
             print(f"  [rate limit] aguardando {wait:.0f}s…", flush=True)
             time.sleep(wait)
             delay *= 2
